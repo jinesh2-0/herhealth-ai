@@ -1,0 +1,22 @@
+# Secrets - never commit API keys
+.env
+.streamlit/secrets.toml
+
+# Raw data: CC BY-NC-SA 4.0 allows non-commercial sharing with attribution (see data/raw/ATTRIBUTION.md)
+data/raw/*
+!data/raw/PCOS_data_without_infertility.xlsx
+!data/raw/ATTRIBUTION.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
