@@ -21,6 +21,19 @@ def _model(model: str | None = None) -> str:
     return model or os.getenv("OPENAI_MODEL") or FALLBACK_MODEL
 
 
+def _chat(client, **kwargs):
+    """chat.completions.create with low reasoning effort for reasoning models (faster replies).
+    Falls back to a plain call if the provider doesn't accept the parameter."""
+    effort = os.getenv("OPENAI_REASONING_EFFORT") or (
+        "low" if "gpt-oss" in kwargs.get("model", "") else None)
+    if effort:
+        try:
+            return client.chat.completions.create(reasoning_effort=effort, **kwargs)
+        except Exception:
+            pass
+    return client.chat.completions.create(**kwargs)
+
+
 def get_client(api_key: str | None = None, base_url: str | None = None):
     """Return an OpenAI-compatible client, or None if no key / package is available.
 
@@ -76,7 +89,8 @@ def extract_answers(client, conversation: list[dict], model: str | None = None) 
     chat = [{"role": m["role"], "content": scrub_pii(m["content"])} for m in conversation[-12:]]
     try:
         # Best option: strict JSON schema (OpenAI, Gemini and some Groq models support it)
-        response = client.chat.completions.create(
+        response = _chat(
+            client,
             model=_model(model),
             messages=[{"role": "system", "content": EXTRACT_SYSTEM}] + chat,
             temperature=0,
@@ -88,7 +102,8 @@ def extract_answers(client, conversation: list[dict], model: str | None = None) 
     except Exception:
         # Fallback for providers/models without strict schemas: plain JSON mode
         keys = ", ".join(schema["properties"])
-        response = client.chat.completions.create(
+        response = _chat(
+            client,
             model=_model(model),
             messages=[{"role": "system", "content": EXTRACT_SYSTEM + (
                 f"\nReply with ONLY a JSON object with exactly these keys: {keys}. "
@@ -174,7 +189,8 @@ def explain(client, result: dict, model: str | None = None) -> str:
         "answers_not_given": result["assumed_typical"],
     }
     try:
-        response = client.chat.completions.create(
+        response = _chat(
+            client,
             model=_model(model),
             messages=[{"role": "system", "content": EXPLAIN_SYSTEM},
                       {"role": "user", "content": json.dumps(payload)}],
