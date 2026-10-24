@@ -6,7 +6,7 @@ import re
 
 DISCLAIMER = (
     "This tool gives a screening estimate based on patterns in a public research dataset. "
-    "It is not a diagnosis and cannot rule PCOS in or out. Please speak to a GP or "
+    "It is not a diagnosis and cannot rule PMOS (formerly PCOS) in or out. Please speak to a GP or "
     "healthcare professional about any symptoms that worry you."
 )
 
@@ -36,11 +36,11 @@ RED_FLAGS = [
 
 # Phrases the LLM must never use: it never diagnoses.
 _DIAGNOSTIC_PHRASES = [
-    (re.compile(r"\byou (definitely |probably |likely )?have pcos\b", re.I),
-     "your answers share some patterns linked with PCOS"),
+    (re.compile(r"\byou (definitely |probably |likely )?have (pcos|pmos)\b", re.I),
+     "your answers share some patterns linked with PMOS"),
     (re.compile(r"\byou (are|have been) diagnosed\b", re.I), "you may want to ask about"),
-    (re.compile(r"\byou (do not|don't) have pcos\b", re.I),
-     "your answers match fewer PCOS-linked patterns, but this cannot rule it out"),
+    (re.compile(r"\byou (do not|don't) have (pcos|pmos)\b", re.I),
+     "your answers match fewer PMOS-linked patterns, but this cannot rule it out"),
 ]
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")

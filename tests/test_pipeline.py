@@ -65,6 +65,88 @@ def test_extraction_schema_is_strict():
     assert schema["additionalProperties"] is False
 
 
+def test_tracker_alerts_and_roundtrip():
+    from datetime import date, timedelta
+    from src import tracker as T
+    today = date(2026, 10, 24)
+
+    demo = T.demo_log(today)
+    titles = {a["title"] for a in T.alerts(demo, today)}
+    assert "Your periods look irregular" in titles
+    assert "Irregular periods with other symptoms" in titles
+    assert T.from_json(T.to_json(demo))["periods"] == demo["periods"]
+
+    regular = T.empty_log()
+    for i in range(4):
+        s = today - timedelta(days=28 * (3 - i) + 5)
+        T.add_period(regular, s, s + timedelta(days=4), "Medium", 3)
+    assert not [a for a in T.alerts(regular, today) if a["level"] in ("gp", "urgent")]
+
+    missed = T.empty_log()
+    T.add_period(missed, today - timedelta(days=120), today - timedelta(days=115), "Medium", 3)
+    assert any("No period logged" in a["title"] for a in T.alerts(missed, today))
+
+    painful = T.empty_log()
+    T.add_period(painful, today - timedelta(days=3), None, T.VERY_HEAVY, 9)
+    levels = {a["level"] for a in T.alerts(painful, today)}
+    assert "urgent" in levels
+
+
+def test_new_guideline_checks():
+    from datetime import date, timedelta
+    from src import tracker as T
+    today = date(2026, 10, 24)
+    keys = lambda log: {a["key"]: a["level"] for a in T.alerts(log, today)}  # noqa: E731
+
+    # Every demo profile loads, and every alert says where it comes from and how reliable it is
+    for make in T.DEMOS.values():
+        log = make(today)
+        for a in T.alerts(log, today):
+            assert a["source"] and a["evidence"] and a["level"] in {"info", "gp", "urgent"}
+        assert T.from_json(T.to_json(log))["profile"] == log["profile"]
+    assert "endometriosis" in keys(T.demo_emma(today)) and "heavy" in keys(T.demo_emma(today))
+    assert "perimenopause" in keys(T.demo_claire(today))
+
+    # Endometriosis (NICE NG73): one listed symptom is enough to flag
+    log = T.empty_log()
+    T.add_symptoms(log, today, {"pain_sex": True})
+    assert keys(log).get("endometriosis") == "gp"
+
+    # Heavy periods + anaemia symptoms -> blood test advice (NICE NG88)
+    log = T.empty_log()
+    T.add_symptoms(log, today, {"clots": True, "tiredness": True})
+    heavy = [a for a in T.alerts(log, today) if a["key"] == "heavy"][0]
+    assert "full blood count" in heavy["detail"]
+
+    # Bleeding after the menopause is always urgent
+    log = T.empty_log()
+    log["profile"]["menopause"] = True
+    T.add_period(log, today - timedelta(days=2), today, "Light", 0)
+    assert keys(log).get("postmeno_bleeding") == "urgent"
+
+    # Bloating on 12+ days in a month (NICE NG12), but not on fewer
+    log = T.empty_log()
+    for i in range(11):
+        T.add_symptoms(log, today - timedelta(days=i), {"bloating": True})
+    assert "bloating" not in keys(log)
+    T.add_symptoms(log, today - timedelta(days=20), {"bloating": True})
+    assert keys(log).get("bloating") == "gp"
+
+    # Perimenopause advice differs under 45
+    log = T.empty_log()
+    log["profile"]["age"] = 38
+    T.add_symptoms(log, today, {"hot_flushes": True})
+    peri = [a for a in T.alerts(log, today) if a["key"] == "perimenopause"][0]
+    assert "under 45" in peri["detail"]
+
+    # Cervical screening: overdue only for ages 25-64
+    log = T.empty_log()
+    log["profile"].update({"age": 40, "last_screening": T.SCREENING_OPTIONS[2]})
+    assert keys(log).get("screening") == "gp"
+    log["profile"]["age"] = 70
+    assert "screening" not in keys(log)
+
+
 def test_fallback_explanation_without_api():
     result = {"band_text": "Some patterns.", "flag_for_gp": True, "assumed_typical": [],
               "top_factors": [{"label": "Irregular periods", "effect": 0.2}]}

@@ -54,3 +54,22 @@ This is written for the hackathon's **Most Responsible Use of Data** award, and 
 - Validation on diverse UK data under proper governance (ethics approval, a data protection impact assessment).
 - Co-design with patients and clinicians, and clinical safety review (DCB0129 / DCB0160).
 - Assessment as a medical device under UK regulations.
+
+## 7. Tracking data (My health) and the NHS App vision
+- **In this prototype nothing is stored.** The period and symptom log lives only in the user's browser session. The user can **download** it as a file to keep, **re-upload** it later, or **delete** it with one click.
+- **The log is never sent to an AI.** Alerts are simple, transparent rules taken from nhs.uk "see a GP if" advice. The pattern check runs the local ML model, and its explanation uses a fixed template, not the LLM.
+- **Alerts lean towards safety.** They point to a GP or NHS 111 and link the NHS page they come from. They never diagnose.
+- **How it would work inside the NHS App** (our proposal, not current NHS policy):
+  - It would sit behind NHS login, with data held in the NHS's secure infrastructure under UK GDPR and the NHS Data Security and Protection Toolkit.
+  - It would need clinical safety cases (DCB0129/DCB0160) and a data protection impact assessment.
+  - Users would get explicit opt-in consent, the ability to see, export and delete their data, and no sharing with third parties.
+  - Any LLM provider would need an NHS-approved data processing agreement.
+- **Terminology:** we follow the NHS's current name, **polyendocrine metabolic ovarian syndrome (PMOS)**, formerly PCOS. The training dataset itself still uses "PCOS".
+
+## 8. Honest accuracy, and why most checks are rules rather than models
+- **We only train a model where suitable open data exists.** PMOS is the only condition with a public dataset that has self-reported symptoms *and* confirmed diagnoses. For endometriosis, heavy periods, perimenopause and gynaecological cancer warning signs we found no such dataset, and published studies show symptoms alone can't detect these reliably (for example, endometriosis symptom questionnaires reach an AUC of about 0.68). Training weak models on unsuitable data would give false confidence.
+- **So those checks are transparent rules from NHS and NICE guidance** (NG73 endometriosis, NG88 heavy menstrual bleeding, NG23 menopause, NG12 suspected cancer, and the NHS cervical screening programme). Every alert names its source and has a *How reliable is this sign?* section quoting the published evidence. We never claim our own accuracy for these rules, because we haven't tested them.
+- **The PMOS model's accuracy is shown in plain numbers, not as one "accuracy" figure**, which is misleading with imbalanced data: of 100 people with PMOS it flags about 86 (95% range 80% to 90%), and of 100 without it about 24 are flagged too (20% to 29%).
+- **We show what a flag means in real life.** The training data is 33% PMOS, but the general population figure is up to 13% (WHO). At that rate only about 3 in 10 people flagged would have PMOS, so every result says a flag means "worth checking with a GP", never "you have it", and a low score never rules it out.
+- **Known blind spots are shown to the user:** ages outside 20–48, more false alarms for a BMI of 30 or more, and irregular periods in people over 40 with menopause-type symptoms (perimenopause can look like PMOS to the model). The check is switched off for people who say their periods have stopped.
+- **Wording around cancer warning signs is deliberately calm and factual:** for example, "about 9 in 100 people with bleeding after the menopause have womb cancer, but about 9 in 10 womb cancers cause it, so it should always be checked".

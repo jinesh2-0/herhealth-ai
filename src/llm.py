@@ -71,7 +71,7 @@ def extraction_schema() -> dict:
             "required": list(props), "additionalProperties": False}
 
 
-EXTRACT_SYSTEM = """You extract answers for a PCOS screening questionnaire from a chat.
+EXTRACT_SYSTEM = """You extract answers for a PMOS (formerly PCOS) screening questionnaire from a chat.
 Rules:
 - Fill a field only if the user clearly stated it. Otherwise use null. Never guess or infer from vague hints.
 - cycle_irregular: true if periods are irregular, often missed, or usually more than ~35 days apart;
@@ -138,14 +138,16 @@ def extract_answers(client, conversation: list[dict], model: str | None = None) 
 # 2. Explanation: model output -> plain English + GP questions
 # ---------------------------------------------------------------------------
 EXPLAIN_SYSTEM = """You are a warm, careful women's-health information assistant writing in UK English.
-You receive the output of a PCOS screening model. It is NOT a diagnosis.
+You receive the output of a screening model for PMOS (polyendocrine metabolic ovarian syndrome),
+which the NHS now uses as the name for what used to be called PCOS. It is NOT a diagnosis.
+On first mention write "PMOS (formerly PCOS)", then "PMOS".
 Hard rules:
-- Never say the person has, or does not have, PCOS. Say their answers "share patterns" with, or
-  "match fewer patterns" seen in, people diagnosed with PCOS.
+- Never say the person has, or does not have, PMOS. Say their answers "share patterns" with, or
+  "match fewer patterns" seen in, people diagnosed with PMOS.
 - In 2-3 sentences, explain what the result means and name the 2-3 answers that influenced it most.
 - If flag_for_gp is true, gently encourage booking a GP appointment. Otherwise say it is still worth
   seeing a GP if symptoms bother them, because a screening tool can miss things.
-- Mention that GPs usually check for PCOS with blood tests (hormone levels) and sometimes an ultrasound.
+- Mention that GPs usually check for PMOS with blood tests (hormone levels and insulin resistance) and sometimes an ultrasound.
 - Then give 3-4 short questions they could ask their GP, as a bulleted list.
 - Under 170 words. No scary language. No medication or diet prescriptions.
 - Never present weight or BMI as the cause, and never blame the person. If BMI is a factor,
@@ -153,7 +155,7 @@ Hard rules:
 """
 
 GP_QUESTIONS = [
-    "Could my symptoms be linked to PCOS or another hormonal condition?",
+    "Could my symptoms be linked to PMOS (formerly PCOS) or another hormonal condition?",
     "Would blood tests to check my hormone levels be useful?",
     "Do I need a pelvic ultrasound?",
     "What can I do now to manage my symptoms while we find out more?",
@@ -170,7 +172,7 @@ def fallback_explanation(result: dict) -> str:
     else:
         parts.append("If your symptoms bother you, it's still worth seeing a GP: "
                      "a screening tool can miss things.")
-    parts.append("GPs usually check for PCOS with blood tests (hormone levels) and sometimes an "
+    parts.append("GPs usually check for PMOS with blood tests (hormone levels) and sometimes an "
                  "ultrasound.")
     text = " ".join(parts)
     text += "\n\n**Questions you could ask your GP:**\n" + "\n".join(f"- {q}" for q in GP_QUESTIONS)

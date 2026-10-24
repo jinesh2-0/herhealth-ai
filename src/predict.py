@@ -82,13 +82,13 @@ class Screener:
 
         if risk >= self.threshold:
             band = "higher"
-            band_text = "Several of your answers match patterns seen in people diagnosed with PCOS."
+            band_text = "Several of your answers match patterns seen in people diagnosed with PMOS (formerly PCOS)."
         elif risk >= self.threshold / 2:
             band = "moderate"
-            band_text = "Some of your answers match patterns seen in people diagnosed with PCOS."
+            band_text = "Some of your answers match patterns seen in people diagnosed with PMOS (formerly PCOS)."
         else:
             band = "lower"
-            band_text = "Your answers match fewer of the patterns seen in people diagnosed with PCOS."
+            band_text = "Your answers match fewer of the patterns seen in people diagnosed with PMOS (formerly PCOS)."
 
         assumed = [FEATURE_LABELS.get(f, f) for f in self.features if pd.isna(row.at[0, f])]
 

@@ -1,4 +1,4 @@
-streamlit>=1.36
+streamlit>=1.50
 pandas>=2.0
 numpy>=1.24
 # Pinned: the saved model must be loaded with the same scikit-learn version it was trained with
