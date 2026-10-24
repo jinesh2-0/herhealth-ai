@@ -122,8 +122,10 @@ Python · pandas · scikit-learn · Streamlit · OpenAI API (structured outputs)
 
 ## Team
 <!-- TODO: list every teammate (name + GitHub) and add them as repo collaborators -->
+- Salma Bushra Islam
+- Hareem Ghouri
+- Ching Kiu Chan
 - Jinesh Dugar
-- …
 
 ## Disclosure of AI tools
 Per the hackathon rules: parts of this code and documentation were drafted with the help of AI assistants (Anthropic's Claude), then reviewed, run and tested by the team. The app itself calls the OpenAI API at runtime for the chat features.
