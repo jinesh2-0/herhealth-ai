@@ -6,6 +6,7 @@ Run locally:   streamlit run app.py
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -128,6 +129,121 @@ def answered(feature: str, answers: dict) -> bool:
     return answers.get(feature) is not None
 
 
+YES = {"yes", "y", "yeah", "yep", "yup", "ya", "definitely", "i do", "i have", "correct", "true"}
+NO = {"no", "n", "nope", "nah", "never", "not really", "i dont", "i do not", "i havent", "none",
+      "false"}
+SKIP = {"not sure", "unsure", "dont know", "i dont know", "idk", "no idea", "skip",
+        "prefer not to say", "rather not say", "maybe"}
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
+
+
+def parse_height_weight(text: str, answers: dict) -> dict | None:
+    """'165 cm', '60kg', '165 60', '165cm and 58 kg' -> {'height_cm':..., 'weight_kg':...}.
+    Feet/inches/stones/pounds are left to the LLM."""
+    low = text.lower()
+    if re.search(r"\b(ft|feet|foot|inch|inches|stone|stones|st|lb|lbs|pound|pounds)\b|'|\"", low):
+        return None
+    found = {}
+    for value, unit in re.findall(r"(\d+(?:\.\d+)?)\s*(cm|kg)?", low):
+        v = float(value)
+        has_height = "height_cm" in found or answers.get("height_cm") is not None
+        if unit == "cm" or (not unit and 120 <= v <= 220 and not has_height):
+            found["height_cm"] = v
+        elif unit == "kg" or (not unit and 30 <= v <= 200):
+            found["weight_kg"] = v
+    return found or None
+
+
+def quick_parse(text: str, feature: str | None, answers: dict):
+    """Answer simple replies (yes/no/a number) instantly without calling the LLM.
+    Returns a value (or a dict for height/weight), "SKIP" for not sure,
+    or None if the LLM should interpret it."""
+    if feature is None:
+        return None
+    t = _norm(text)
+    if t in SKIP:
+        return "SKIP"
+    if feature == "bmi":
+        return parse_height_weight(text, answers)
+    spec = SCREENING_FEATURES[feature]
+    if feature == "cycle_irregular":
+        if "irregular" in t or "missed" in t:
+            return 1
+        if t in {"regular", "regular ones", "theyre regular", "they are regular"}:
+            return 0
+        return None  # "yes"/"no" is ambiguous for this question, so let the LLM handle it
+    if spec["kind"] == "binary":
+        return 1 if t in YES else 0 if t in NO else None
+    if feature in ("age", "period_length"):
+        m = re.search(r"\d+(\.\d+)?", t)
+        if m and spec["min"] <= float(m.group()) <= spec["max"]:
+            return float(m.group())
+    return None
+
+
+def handle_turn(ss, new_user: list[dict]) -> None:
+    for m in new_user:
+        for warning in red_flags(m["content"]):
+            ss.messages.append({"role": "assistant", "content": f"⚠️ **{warning}**"})
+    reply = new_user[-1]["content"]
+    pending = ss.asked[-1] if ss.asked else None
+
+    quick = quick_parse(reply, pending, ss.answers)
+    if quick is not None:
+        if isinstance(quick, dict):
+            ss.answers.update(quick)
+        elif quick != "SKIP":
+            ss.answers[pending] = quick
+    else:
+        try:
+            ss.answers.update(llm.extract_answers(client, ss.messages))
+        except Exception as exc:
+            ss.messages.append({"role": "assistant", "content":
+                                f"Sorry, I couldn't reach the AI just now ({type(exc).__name__}). "
+                                "Please try again, or use the **Quick check** tab."})
+            return
+    if ss.answers.get("bmi") is None:
+        ss.answers["bmi"] = compute_bmi(ss.answers.get("height_cm"), ss.answers.get("weight_kg"))
+
+    # Height/weight given only half: ask for the missing half (once each)
+    if pending == "bmi" and quick != "SKIP" and ss.answers.get("bmi") is None:
+        h, w = ss.answers.get("height_cm"), ss.answers.get("weight_kg")
+        if h is not None and w is None and "bmi_weight" not in ss.retried:
+            ss.retried.append("bmi_weight")
+            ss.messages.append({"role": "assistant",
+                                "content": "Thanks! And what's your weight in kg?"})
+            return
+        if w is not None and h is None and "bmi_height" not in ss.retried:
+            ss.retried.append("bmi_height")
+            ss.messages.append({"role": "assistant",
+                                "content": "Thanks! And what's your height in cm?"})
+            return
+
+    # Unclear answer to the question just asked: ask again once, with a hint
+    if (pending and quick != "SKIP" and not answered(pending, ss.answers)
+            and pending not in ss.retried):
+        ss.retried.append(pending)
+        spec = SCREENING_FEATURES[pending]
+        hint = ("You can answer yes, no or not sure." if spec["kind"] == "binary"
+                else "A number is fine, or say 'not sure'.")
+        ss.messages.append({"role": "assistant", "content":
+                            f"Sorry, I didn't quite catch that. {spec['question']} {hint}"})
+        return
+
+    next_q = next((f for f in SCREENING_FEATURES
+                   if not answered(f, ss.answers) and f not in ss.asked), None)
+    if next_q:
+        ss.asked.append(next_q)
+        ss.messages.append({"role": "assistant", "content": SCREENING_FEATURES[next_q]["question"]})
+    else:
+        ss.result = screener.predict(ss.answers)
+        ss.messages.append({"role": "assistant",
+                            "content": "Thank you, that's everything I need. Here is your result:"})
+
+
 # ---------------------------------------------------------------------------
 # Tabs
 # ---------------------------------------------------------------------------
@@ -144,43 +260,33 @@ with chat_tab:
                             "Hi! Tell me in your own words about your periods and any symptoms "
                             "you've noticed (for example acne, hair changes or weight changes). "
                             "Please don't share your name or contact details."}]
-            ss.answers, ss.asked, ss.result = {}, [], None
+            ss.answers, ss.asked, ss.retried, ss.result = {}, [], [], None
+            ss.processed = len(ss.messages)  # messages already handled
 
         for msg in ss.messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        if ss.result is None and (text := st.chat_input("Type your answer...")):
-            ss.messages.append({"role": "user", "content": text})
-            for warning in red_flags(text):
-                ss.messages.append({"role": "assistant", "content": f"⚠️ **{warning}**"})
-            try:
-                ss.answers.update(llm.extract_answers(client, ss.messages))
-            except Exception as exc:
-                st.warning(f"Couldn't reach the AI ({type(exc).__name__}). "
-                           "Try again, or use the Quick check tab.")
-            if ss.answers.get("bmi") is None:
-                ss.answers["bmi"] = compute_bmi(ss.answers.get("height_cm"),
-                                                ss.answers.get("weight_kg"))
-
-            next_q = next((f for f in SCREENING_FEATURES
-                           if not answered(f, ss.answers) and f not in ss.asked), None)
-            if next_q:
-                ss.asked.append(next_q)
-                ss.messages.append({"role": "assistant",
-                                    "content": SCREENING_FEATURES[next_q]["question"]})
-            else:
-                ss.result = screener.predict(ss.answers)
-                ss.messages.append({"role": "assistant",
-                                    "content": "Thank you, that's everything I need. "
-                                               "Here is your result:"})
-            st.rerun()
+        if ss.result is None:
+            text = st.chat_input("Type your answer...")
+            if text:
+                ss.messages.append({"role": "user", "content": text})
+                with st.chat_message("user"):
+                    st.markdown(text)
+            # Handle every user message not processed yet. This survives Streamlit
+            # interrupting a run when someone types again before the reply arrives.
+            new_user = [m for m in ss.messages[ss.processed:] if m["role"] == "user"]
+            if new_user:
+                with st.spinner("Thinking..."):
+                    handle_turn(ss, new_user)
+                ss.processed = len(ss.messages)
+                st.rerun()
 
         if ss.result is not None:
             show_result(ss.result, cache_key="chat-" + str(sorted(ss.answers.items())))
 
         if st.button("Start over", key="reset_chat"):
-            for k in ["messages", "answers", "asked", "result"]:
+            for k in ["messages", "answers", "asked", "retried", "result", "processed"]:
                 ss.pop(k, None)
             st.rerun()
 
