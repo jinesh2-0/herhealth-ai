@@ -13,11 +13,21 @@ import os
 from .config import SCREENING_FEATURES
 from .guardrails import make_safe, scrub_pii
 
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+FALLBACK_MODEL = "gpt-4o-mini"
 
 
-def get_client(api_key: str | None = None):
-    """Return an OpenAI client, or None if no key / package is available."""
+def _model(model: str | None = None) -> str:
+    """Model name, read at call time so Streamlit secrets/env changes are picked up."""
+    return model or os.getenv("OPENAI_MODEL") or FALLBACK_MODEL
+
+
+def get_client(api_key: str | None = None, base_url: str | None = None):
+    """Return an OpenAI-compatible client, or None if no key / package is available.
+
+    Works with any OpenAI-compatible provider by setting base_url, e.g.
+      Groq:   https://api.groq.com/openai/v1
+      Gemini: https://generativelanguage.googleapis.com/v1beta/openai/
+    """
     key = api_key or os.getenv("OPENAI_API_KEY")
     if not key:
         return None
@@ -25,7 +35,7 @@ def get_client(api_key: str | None = None):
         from openai import OpenAI
     except ImportError:
         return None
-    return OpenAI(api_key=key)
+    return OpenAI(api_key=key, base_url=base_url or os.getenv("OPENAI_BASE_URL") or None)
 
 
 # ---------------------------------------------------------------------------
@@ -62,22 +72,49 @@ Rules:
 
 def extract_answers(client, conversation: list[dict], model: str | None = None) -> dict:
     """conversation: [{"role": "user"|"assistant", "content": str}, ...] -> non-null answers."""
-    messages = [{"role": "system", "content": EXTRACT_SYSTEM}]
-    messages += [{"role": m["role"], "content": scrub_pii(m["content"])} for m in conversation[-12:]]
-    response = client.chat.completions.create(
-        model=model or DEFAULT_MODEL,
-        messages=messages,
-        temperature=0,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {"name": "pcos_answers", "schema": extraction_schema(), "strict": True},
-        },
-    )
-    data = json.loads(response.choices[0].message.content)
+    schema = extraction_schema()
+    chat = [{"role": m["role"], "content": scrub_pii(m["content"])} for m in conversation[-12:]]
+    try:
+        # Best option: strict JSON schema (OpenAI, Gemini and some Groq models support it)
+        response = client.chat.completions.create(
+            model=_model(model),
+            messages=[{"role": "system", "content": EXTRACT_SYSTEM}] + chat,
+            temperature=0,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "pcos_answers", "schema": schema, "strict": True},
+            },
+        )
+    except Exception:
+        # Fallback for providers/models without strict schemas: plain JSON mode
+        keys = ", ".join(schema["properties"])
+        response = client.chat.completions.create(
+            model=_model(model),
+            messages=[{"role": "system", "content": EXTRACT_SYSTEM + (
+                f"\nReply with ONLY a JSON object with exactly these keys: {keys}. "
+                "Use true/false for yes-no fields, numbers for numeric fields, null if unknown.")}]
+            + chat,
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+    content = response.choices[0].message.content or "{}"
+    start, end = content.find("{"), content.rfind("}")
+    data = json.loads(content[start:end + 1]) if start != -1 else {}
     answers = {}
     for key, value in data.items():
-        if value is None:
+        if key not in schema["properties"] or value is None:
             continue
+        if isinstance(value, str):  # tolerate "yes"/"no"/"12" from looser models
+            low = value.strip().lower()
+            if low in {"true", "yes"}:
+                value = True
+            elif low in {"false", "no"}:
+                value = False
+            else:
+                try:
+                    value = float(low)
+                except ValueError:
+                    continue
         answers[key] = int(value) if isinstance(value, bool) else value
     return answers
 
@@ -138,7 +175,7 @@ def explain(client, result: dict, model: str | None = None) -> str:
     }
     try:
         response = client.chat.completions.create(
-            model=model or DEFAULT_MODEL,
+            model=_model(model),
             messages=[{"role": "system", "content": EXPLAIN_SYSTEM},
                       {"role": "user", "content": json.dumps(payload)}],
             temperature=0.3,

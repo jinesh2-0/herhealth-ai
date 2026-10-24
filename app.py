@@ -35,17 +35,20 @@ def load_screener():
     return Screener(MODEL_PATH) if MODEL_PATH.exists() else None
 
 
-def api_key() -> str | None:
-    key = None
+def setting(name: str) -> str | None:
+    """Read from Streamlit secrets (deployed) or environment/.env (local)."""
+    value = None
     try:
-        key = st.secrets.get("OPENAI_API_KEY")
+        value = st.secrets.get(name)
     except Exception:  # no secrets file locally
         pass
-    return key or os.getenv("OPENAI_API_KEY")
+    return value or os.getenv(name)
 
 
 screener = load_screener()
-client = llm.get_client(api_key())
+if setting("OPENAI_MODEL"):
+    os.environ["OPENAI_MODEL"] = setting("OPENAI_MODEL")
+client = llm.get_client(setting("OPENAI_API_KEY"), setting("OPENAI_BASE_URL"))
 
 st.title("🌸 HerHealth AI")
 st.markdown("**Could your symptoms be linked to PCOS?** A free, private screening check "
@@ -132,7 +135,7 @@ chat_tab, form_tab = st.tabs(["💬 Chat", "📝 Quick check"])
 
 with chat_tab:
     if client is None:
-        st.info("The AI chat needs an OpenAI API key (see README). "
+        st.info("The AI chat needs an LLM API key (see README). "
                 "Use **Quick check**: it uses exactly the same model, without AI.")
     else:
         ss = st.session_state

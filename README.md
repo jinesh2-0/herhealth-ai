@@ -90,7 +90,13 @@ Tests: `pytest -q`
 ## Deploy (Streamlit Community Cloud)
 1. Push this repo to GitHub, **public**, *including* `models/pcos_screening.joblib`.
 2. On share.streamlit.io, choose **New app**, pick the repo, and set the main file to `app.py`.
-3. In **Advanced settings → Secrets**, add `OPENAI_API_KEY = "sk-..."`.
+3. In **Advanced settings → Secrets**, add your LLM provider. Any OpenAI-compatible API works. For example, with Groq's free tier:
+   ```toml
+   OPENAI_API_KEY = "your-groq-key"
+   OPENAI_BASE_URL = "https://api.groq.com/openai/v1"
+   OPENAI_MODEL = "openai/gpt-oss-120b"
+   ```
+   See `.env.example` for Gemini and OpenAI settings.
 
 ## Repo structure
 ```

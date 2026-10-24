@@ -14,6 +14,7 @@ This is written for the hackathon's **Most Responsible Use of Data** award, and 
 - **Nothing a user enters is stored.** There are no accounts and no database, and answers live only in the browser session.
 - **Data minimisation:** the screening model needs only 11 answers. We never ask for names, dates of birth, contact details or NHS numbers.
 - **PII scrubbing:** before any chat text is sent to the OpenAI API, `src/guardrails.py` removes emails, phone numbers, NHS-style numbers and UK postcodes. Users are also told not to share identifying details.
+- **Choice of LLM provider:** the app works with any OpenAI-compatible API (OpenAI, Groq, Gemini). Free tiers can have different data terms. For example, Google's terms for its unpaid Gemini API tier allow it to use submitted content to improve its products. That's another reason we scrub identifiers first, and why production use would need a paid tier with a data processing agreement.
 - **A no-AI option:** the *Quick check* tab runs entirely inside the app, with no external API calls, for people who don't want their words sent to a third party.
 - **Secrets:** API keys are kept in `.env` or Streamlit secrets and never committed (`.gitignore`).
 
