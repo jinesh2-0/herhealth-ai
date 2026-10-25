@@ -24,13 +24,25 @@ The warning signs (irregular cycles, heavy or painful periods, hot flushes, blee
 
 | Tab | What it does |
 |---|---|
-| **My health** (main) | Log periods (dates, flow, pain) and symptoms (pain, bleeding, skin and hair, energy and mood, menopause-type symptoms, tummy). Shows a cycle-length chart, **NHS-style care cards** (blue = see a GP, red = urgent) with *How reliable is this sign?* and a link to the nhs.uk page, a **PMOS pattern check** with its accuracy, and a **downloadable GP summary** with tailored questions. **Download / delete my data**, plus three made-up **demo profiles** (Sophie, 23; Emma, 31; Claire, 47) |
-| **Ask about my symptoms** | Chat in plain English. An LLM turns free text into structured answers and asks only the missing questions. Simple replies like yes, no or numbers are parsed instantly without the LLM |
-| **Quick check** | The same PMOS model through a short form, with no AI at all |
+| **My health** (main) | A tracker you keep using. Log periods (dates, flow, pain), symptoms and a 0–10 **"how much did this affect your day"** rating, or import from Apple Health. Shows a cycle chart, **NHS-style care cards** (blue = see a GP, red = urgent) with *How reliable is this sign?*, **tests to ask your GP about**, and a link to book a GP appointment. Runs the **PMOS pattern check** with its accuracy, then builds a **printable NHS-style PDF summary for your GP** (charts, medicines, treatments tried, your answers to follow-up questions). Download / delete your data; three made-up **demo profiles** |
+| **Ask about my symptoms** | A one-off check by chat. An LLM turns free text into structured answers and asks only what's missing: the 11 PMOS questions, then a few more (effect on daily life 0–10, worst period pain, a bleeding and pain checklist, bloating, hot flushes, bleeding after the menopause) so the **same NHS/NICE checks** run as in My health. Simple replies (yes, no, numbers, "a and e", "none") are parsed instantly without the LLM |
+| **Quick check** | The same questions as a form, with **no AI at all**. Age, height and weight must be entered (we don't guess them) |
 
 **Safety:** red-flag phrases (severe pain, very heavy bleeding, fainting, bleeding in pregnancy, bleeding after the menopause, chest pain, self-harm) trigger urgent-care advice immediately.
 
 <!-- TODO: add 2-3 screenshots here (My health with alerts, pattern check accuracy, chat) -->
+
+### Effect on daily life (all three tabs)
+Every tab asks how much symptoms affect your day, from **0 = no effect** to **10 = I can't get out of bed**. A rating of **7 or more raises a "see a GP" card on its own**, with stronger wording at 9+, because NHS guidance says to see a GP when symptoms affect everyday life, work or relationships. A low PMOS score never hides this: the result says so explicitly. "Skip" means not rated; we never assume 0.
+
+### Symptom severity (My health and Quick check)
+Each symptom has its own **None / Mild / Moderate / Severe** slider (Apple Health severities are imported too). Anything rated **Severe** is flagged using NHS advice for that symptom: **severe pelvic pain** and **severe breathlessness or heart pounding** get red urgent cards (when to call 999 or NHS 111, from the NHS pelvic pain and shortness of breath pages); **severe low mood or anxiety** gets a card with NHS urgent mental health help and Samaritans; **severe period pain that stops normal activities** gets the urgent period pain card; any other severe symptom gets a "see a GP" card. Severity also appears in the log table, the GP summary and the PDF.
+
+### Tests to ask your GP about
+NHS blood tests are arranged by a GP, so the app doesn't offer a "book a blood test" button. Each warning lists the tests NHS or NICE guidance mentions, and says when a test **can't** settle the question. For example: a full blood count for heavy periods (NICE NG88); **no blood test can diagnose endometriosis** (NICE advises against CA-125 for this); usually **no blood test for perimenopause at 45+** (NICE NG23), but FSH tests under 40; CA125 plus ultrasound for persistent bloating at 40+ (NICE). A link explains how to book a GP appointment.
+
+### The PDF summary for your GP
+Built in memory with ReportLab and matplotlib, in an NHS patient-information style (blue header, care cards, plain tables; no NHS logo, clearly marked "not an NHS document"). It contains: about me, what I'd like help with, effect on daily life, flagged warnings with tests, medicines and treatments tried, answers to follow-up questions chosen from the warnings, questions to ask, charts (cycle length vs 21–35 days, period length and pain, symptom frequency, daily-life impact), the period table and the PMOS result with its real-world accuracy. Optional: **"Suggest 2 more personal questions with AI"** sends **only the names of the warnings**, never dates, numbers or anything typed.
 
 ### Why only PMOS gets a machine-learning model
 We only train a model where there is **open data with self-reported symptoms and confirmed diagnoses**. For PMOS there is (Kaggle, 541 patients). For the other conditions there isn't, and published studies show symptoms alone can't detect them reliably (for example, endometriosis symptom questionnaires reach an AUC of only about 0.68). So for those we use **transparent NHS/NICE rules** and quote the published evidence, rather than inventing an accuracy figure.
@@ -47,6 +59,8 @@ We only train a model where there is **open data with self-reported symptoms and
 | Persistent bloating | NHS; NICE NG12 | Published studies | A symptom checklist spotted 57% of early and 80% of advanced ovarian cancers |
 | Bleeding between periods or after sex | NHS | Clinical guidance | Usually harmless, but the NHS says it should always be checked |
 | Cervical screening reminder | NHS screening programme | National programme | Every 5 years from 25 to 64; more often if HPV is found |
+| Apple Watch cycle deviation alerts (imported) | Apple Cycle Tracking | Apple's own rules | Irregular = 17+ days between shortest and longest cycle in 6 months; shown alongside, not instead of, the NHS rules |
+| Wrist temperature and resting heart rate (imported) | Apple Watch sensors | Context only | No NHS or NICE thresholds exist, so we chart them but raise no alerts |
 
 ### Alert rules
 | Rule | Level | Source |
@@ -69,6 +83,20 @@ We only train a model where there is **open data with self-reported symptoms and
 - **Plain numbers with 95% ranges:** of 100 people with PMOS it flags about 86 (80% to 90%); of 100 without, about 24 are flagged too (20% to 29%). Shown as a 100-square picture.
 - **What a flag means in real life:** 33% of the training data had PMOS, but the general population figure is up to 13% (WHO). At that rate only about **3 in 10** people flagged would actually have PMOS, so a flag means "worth checking with a GP".
 - **Extra caveats** appear when the score is less reliable: ages outside 20–48, or irregular periods in someone over 40 with menopause-type symptoms (perimenopause can look like PMOS).
+
+## Apple Health and Apple Watch import
+Apple Health has **no web API**: Apple Watch data lives in the Health app on the iPhone, and only a native iPhone app (HealthKit) or the user's own export can get it out. So HerHealth lets users upload the Health app's export file:
+
+1. iPhone **Health** app → tap your **profile picture** → **Export All Health Data** → **Export**.
+2. Upload **export.zip** on the *My health* tab (*Import from Apple Health*).
+
+**What we read** (last 12 months only): periods and flow, spotting, cycle symptoms (acne, hair loss, fatigue, shortness of breath, mood changes, hot flushes, night sweats, sleep changes, memory lapses, bloating, pelvic pain, bleeding after the menopause), **Apple's own cycle-deviation alerts** (irregular, infrequent or prolonged periods, persistent spotting), weight, height, **sleeping wrist temperature** and **resting heart rate**. Everything else (workouts, routes, heart rhythm, medical records) is skipped. Date of birth is used only to work out age.
+
+**How it's used:** imported periods and symptoms go through the same NHS/NICE rules and the PMOS pattern check. Apple's cycle alerts are shown *alongside* the NHS rules, with Apple's definitions (for example, Apple calls cycles irregular if the shortest and longest differ by 17+ days; the NHS uses 21–35 days). Wrist temperature and resting heart rate are charted **for context only, with no alerts**, because no NHS or NICE thresholds exist for them. Periods the user logged by hand are never overwritten. Apple doesn't record a pain score, so imported periods show pain as "not recorded".
+
+**No iPhone?** Use *Load the made-up sample* (or download the sample export.zip) to see it working with a made-up person ("Olivia", 26).
+
+**In the NHS App** this would use HealthKit directly: the user grants read access per data type, can revoke it at any time, and data syncs continuously instead of by file.
 
 ## How it works
 
@@ -153,6 +181,8 @@ Tests: `pytest -q`
 ```
 app.py                  Streamlit app: My health tracker, chat, quick check, accuracy display (NHS-style UI)
 src/tracker.py          health log, NHS/NICE alert rules with evidence, reliability table, pattern-check inputs, GP summary, demo profiles
+src/apple_health.py     Apple Health export import (safe streaming parser, merge, Apple cycle alerts, made-up sample)
+src/gp_pdf.py           NHS-style PDF GP summary (ReportLab + matplotlib charts)
 src/config.py           feature definitions and questions
 src/data.py             loading/cleaning the Kaggle file
 src/train.py            cross-validated training, threshold, bias check, model card, figures
@@ -165,7 +195,7 @@ reports/                metrics.json, model_card.md, figures
 ```
 
 ## Tech
-Python · pandas · scikit-learn · Streamlit · Groq via the OpenAI-compatible API (structured outputs) · Altair · matplotlib · pytest
+Python · pandas · scikit-learn · Streamlit · Groq via the OpenAI-compatible API (structured outputs) · Altair · matplotlib · defusedxml · ReportLab · pytest
 
 ## Limitations and next steps
 - The training data is small and from a single region, so the next step is validating on more diverse data.

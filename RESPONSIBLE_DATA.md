@@ -73,3 +73,20 @@ This is written for the hackathon's **Most Responsible Use of Data** award, and 
 - **We show what a flag means in real life.** The training data is 33% PMOS, but the general population figure is up to 13% (WHO). At that rate only about 3 in 10 people flagged would have PMOS, so every result says a flag means "worth checking with a GP", never "you have it", and a low score never rules it out.
 - **Known blind spots are shown to the user:** ages outside 20–48, more false alarms for a BMI of 30 or more, and irregular periods in people over 40 with menopause-type symptoms (perimenopause can look like PMOS to the model). The check is switched off for people who say their periods have stopped.
 - **Wording around cancer warning signs is deliberately calm and factual:** for example, "about 9 in 100 people with bleeding after the menopause have womb cancer, but about 9 in 10 womb cancers cause it, so it should always be checked".
+
+## 9. Apple Health / Apple Watch import
+- **The user stays in control.** Apple Health has no web API, so data only arrives if the user exports it from their own iPhone and chooses to upload it.
+- **Data minimisation.** The file is streamed and only about 25 record types from the last 12 months are read (periods, spotting, cycle symptoms, Apple's cycle alerts, weight, height, sleeping wrist temperature, resting heart rate). Workouts, location routes, heart-rhythm data and medical records are skipped without being kept. Date of birth is turned into an age and discarded.
+- **Nothing is stored or sent to an AI.** The file is processed in memory for the user's session only.
+- **Safe parsing.** Uploaded XML is parsed with `defusedxml`, which blocks entity-expansion and external-entity attacks; anything that isn't an Apple Health export is rejected.
+- **No invented thresholds.** Apple's own cycle-deviation alerts are shown with Apple's definitions, next to (not instead of) the NHS rules. Wrist temperature and resting heart rate are charted for context only, because NHS and NICE give no thresholds for them.
+- **The user's own entries win.** Imported data never overwrites periods or symptoms logged by hand, and imported periods are labelled with their source.
+- **In the NHS App** this would use Apple's HealthKit permissions: per-data-type, revocable consent, as the 10 Year Health Plan's "My Health" vision describes for wearables.
+
+## 10. GP summary, follow-up questions and the effect-on-daily-life scale
+- **The PDF is made in memory and handed to the user.** It isn't stored or sent anywhere; medicines, treatments and answers typed for it stay in the browser session.
+- **AI is opt-in and minimal here.** "Suggest 2 more personal questions with AI" sends only the *names* of the warnings shown (for example "Your periods may be heavy"), never dates, numbers, the log or anything the user typed. Without it, follow-up questions come from a fixed, reviewed list.
+- **We ask rather than assume.** Age, height and weight are required for the PMOS check; the daily-life and pain sliders default to "Skip", not 0.
+- **Impact over scores.** A 7+/10 effect on daily life raises a "see a GP" card even when the PMOS score is low, so a model result can never talk someone out of getting help.
+- **Honest about tests.** Test suggestions come from NHS and NICE guidance and include where tests *don't* help (for example, no blood test diagnoses endometriosis), to avoid false reassurance from a normal result.
+- **Severity ratings are the user's own words, not a diagnosis.** "Severe" triggers the NHS advice for that symptom (including when to call 999 or NHS 111), and nothing defaults to a severity the user didn't choose.

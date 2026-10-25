@@ -71,3 +71,13 @@ threshold, and limitations stated.
 - *Where is the data stored?* In the prototype, nowhere: it stays in the browser tab, and users can download or delete it. In the NHS App, it would sit in NHS infrastructure under NHS data rules.
 - *Why not train models for endometriosis or menopause too?* There's no open dataset with self-reported symptoms and confirmed diagnoses, and published symptom-only models are weak (endometriosis AUC about 0.68). A weak model would give false confidence, so we use NICE rules and show the published evidence instead.
 - *Why don't you show "accuracy"?* It's misleading with imbalanced data: saying "no" to everyone would score 67% on our data. We show sensitivity and specificity as "out of 100 people", with 95% ranges, and what a flag means at real-world prevalence (about 3 in 10 flags right).
+- *Can it use wearable data?* Yes: users can import their Apple Health export (Apple Watch and iPhone). We read only the women's-health records, show Apple's own cycle alerts next to the NHS rules, and chart wrist temperature and resting heart rate without alerts, because there are no NHS thresholds for them. In the NHS App it would use HealthKit permissions directly.
+- *Why a file upload instead of a live connection?* Apple Health has no web API; only a native iPhone app can read it. The upload keeps the user in control and works on any device for the demo.
+
+### Optional 20-second wearable demo
+On *My health*, open **Import from Apple Health**, click **Load the made-up sample** ("Olivia", 26). Show the imported cycle chart, the NHS alerts, Apple's own "irregular cycles" card, and the wrist-temperature chart with its "context only" note.
+- *Why not let users book blood tests?* NHS blood tests are requested by a GP. We list the tests NHS/NICE guidance mentions, including when a test can't help (no blood test diagnoses endometriosis), and link to booking a GP appointment.
+- *What if the PMOS score is low but someone is really struggling?* Every tab asks how much symptoms affect daily life (0–10). 7+ raises a "see a GP" card on its own, and the result explicitly says a low score doesn't change that.
+
+### Demo add-on (30 seconds)
+After loading **Emma, 31**, open *Add details for your GP*, type a one-line concern, click **Create my GP summary (PDF)** and open it: NHS-style layout, care cards with tests, charts and questions.

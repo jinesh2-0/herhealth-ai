@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import os
 
-from .config import SCREENING_FEATURES
+from .config import EXTRA_KEYS, SCREENING_FEATURES
 from .guardrails import make_safe, scrub_pii
 
 FALLBACK_MODEL = "gpt-4o-mini"
@@ -67,6 +67,9 @@ def extraction_schema() -> dict:
                           "description": "Height in centimetres (convert from feet/inches)"}
     props["weight_kg"] = {"type": ["number", "null"],
                           "description": "Weight in kilograms (convert from stones/pounds)"}
+    for key, desc in EXTRA_KEYS.items():          # extra NHS/NICE check questions
+        kind = "number" if key in ("impact", "period_pain") else "boolean"
+        props[key] = {"type": [kind, "null"], "description": desc}
     return {"type": "object", "properties": props,
             "required": list(props), "additionalProperties": False}
 
@@ -80,6 +83,9 @@ Rules:
 - Yes/no fields: true for yes, false for no, null for "not sure" or no answer.
 - Convert units: feet/inches -> cm, stones/pounds -> kg.
 - If the user is replying to the assistant's last question, map the reply to that field.
+- impact and period_pain are 0-10 ratings. For the bleeding and pain checklist, set the items the
+  user says they have to true; if they say "none", set every checklist item to false.
+- postmeno_bleeding: false if the user says it doesn't apply (their periods haven't stopped).
 """
 
 
@@ -201,3 +207,40 @@ def explain(client, result: dict, model: str | None = None) -> str:
         return make_safe(response.choices[0].message.content)
     except Exception as exc:  # network/API problems must never break the demo
         return fallback_explanation(result) + f"\n\n(AI explanation unavailable: {type(exc).__name__})"
+
+
+# ---------------------------------------------------------------------------
+# 3. Optional: personalised questions for the GP summary
+#    Privacy: only the NAMES of the warnings are sent (no dates, numbers or free text).
+# ---------------------------------------------------------------------------
+SUGGEST_SYSTEM = """You help someone in the UK prepare for a GP appointment about women's health.
+You are given only the names of warnings an app showed them. Write up to 2 short, specific
+questions the PERSON should answer about their own symptoms before the appointment, so the GP
+gets useful detail (timing, triggers, what has been tried, impact). Each under 20 words, plain UK
+English. No diagnosis, no medical advice, no questions already in the list provided.
+Reply with only JSON: {"questions": ["...", "..."]}"""
+
+
+def suggest_questions(client, warning_titles: list[str], existing: list[str],
+                      model: str | None = None) -> list[str]:
+    if client is None or not warning_titles:
+        return []
+    user = ("Warnings shown: " + "; ".join(warning_titles)
+            + "\nQuestions already asked: " + "; ".join(existing))
+    response = _chat(client, model=_model(model), temperature=0.3,
+                     messages=[{"role": "system", "content": SUGGEST_SYSTEM},
+                               {"role": "user", "content": user}],
+                     response_format={"type": "json_object"})
+    content = response.choices[0].message.content or "{}"
+    start, end = content.find("{"), content.rfind("}")
+    try:
+        items = json.loads(content[start:end + 1]).get("questions", []) if start != -1 else []
+    except ValueError:
+        items = []
+    out = []
+    for q in items:
+        q = make_safe(str(q)).split("\n")[0].strip() if isinstance(q, str) else ""
+        q = q.replace("Not a diagnosis", "").strip()
+        if 8 < len(q) < 160 and q not in existing and q not in out:
+            out.append(q)
+    return out[:2]

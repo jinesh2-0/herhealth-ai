@@ -70,6 +70,62 @@ SCREENING_FEATURES = {
 }
 
 # ---------------------------------------------------------------------------
+# Extra chat questions (not model inputs): they feed the same NHS/NICE checks that the
+# My health tab uses, so the chat can raise warnings beyond PMOS.
+# kind: "scale" (0-10), "binary", or "group" (one question covering several yes/no keys)
+# ---------------------------------------------------------------------------
+EXTRA_FEATURES = {
+    "impact": {
+        "kind": "scale", "label": "Effect on daily life (0-10)", "min": 0, "max": 10,
+        "question": ("On a scale of 0 to 10, how much do your symptoms affect your day? "
+                     "0 = no effect at all, 5 = I've had to cut back on some things, "
+                     "7 = they stop me doing usual things like work or study, "
+                     "10 = I can't get out of bed."),
+    },
+    "period_pain": {
+        "kind": "scale", "label": "Worst period pain (0-10)", "min": 0, "max": 10,
+        "question": ("How bad is your period pain at its worst, from 0 (no pain) to "
+                     "10 (the worst pain imaginable)?"),
+    },
+    "checklist": {
+        "kind": "group", "label": "Bleeding and pain checklist",
+        "keys": ["heavy_bleeding", "pain_sex", "pain_poo", "pain_pee", "bleeding_between",
+                 "bleeding_after_sex"],
+        "question": ("Have you had any of these? (a) very heavy bleeding: changing a pad or tampon "
+                     "every 1 to 2 hours, clots bigger than a 10p coin, or bleeding through to "
+                     "clothes; (b) pain during or after sex; (c) pain when pooing during your "
+                     "period; (d) pain when peeing during your period; (e) bleeding between "
+                     "periods; (f) bleeding after sex. Tell me which letters, or say none."),
+    },
+    "bloating_persistent": {
+        "kind": "binary", "label": "Bloating most days for 3+ weeks",
+        "question": "Have you had bloating most days for 3 weeks or more?",
+    },
+    "hot_flushes": {
+        "kind": "binary", "label": "Hot flushes or night sweats", "min_age": 35,
+        "question": "Do you get hot flushes or night sweats?",
+    },
+    "postmeno_bleeding": {
+        "kind": "binary", "label": "Bleeding after the menopause", "min_age": 45,
+        "question": ("If your periods stopped more than a year ago, have you had any bleeding "
+                     "since? You can say yes, no, or doesn't apply."),
+    },
+}
+EXTRA_KEYS = {  # every field the chat can fill for the NHS/NICE checks
+    "impact": "Effect of symptoms on daily life, 0-10",
+    "period_pain": "Worst period pain, 0-10",
+    "heavy_bleeding": "Very heavy bleeding (pad/tampon every 1-2 hours, big clots or flooding)",
+    "pain_sex": "Pain during or after sex",
+    "pain_poo": "Pain when pooing during a period",
+    "pain_pee": "Pain when peeing during a period",
+    "bleeding_between": "Bleeding between periods",
+    "bleeding_after_sex": "Bleeding after sex",
+    "bloating_persistent": "Bloating most days for 3 weeks or more",
+    "hot_flushes": "Hot flushes or night sweats",
+    "postmeno_bleeding": "Bleeding after periods had stopped for 12+ months",
+}
+
+# ---------------------------------------------------------------------------
 # Extra lab / ultrasound features (clinical comparison model only)
 # ---------------------------------------------------------------------------
 CLINICAL_EXTRA_FEATURES = {
